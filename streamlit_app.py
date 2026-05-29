@@ -13,9 +13,9 @@ st.set_page_config(page_title="视频高光提取", layout="centered")
 # ---------- 加载本地模型 ----------
 @st.cache_resource
 def load_model():
-    model_path = "./blip-model"
-    processor = BlipProcessor.from_pretrained(model_path)
-    model = BlipForConditionalGeneration.from_pretrained(model_path)
+    
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     return processor, model, device
