@@ -6,59 +6,21 @@ import os
 import time
 from PIL import Image
 import torch
-from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
+from transformers import BlipProcessor, BlipForConditionalGeneration
 
 st.set_page_config(page_title="视频高光提取", layout="centered")
 
-# ---------- 加载轻量模型 ----------
 @st.cache_resource
 def load_model():
-    model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-    processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-    tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-small")
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-small")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
-    return model, processor, tokenizer, device
+    return processor, model, device
 
-st.markdown(
-    """
-    <style>
-    .stApp { background: #ffffff; }
-    .stButton > button { 
-        background: #000000; 
-        color: white; 
-        border: none; 
-        border-radius: 0; 
-        padding: 0.5rem 1.5rem; 
-        width: 100%;
-    }
-    .result-box {
-        border-bottom: 1px solid #eee;
-        padding: 0.8rem 0;
-    }
-    .time {
-        font-size: 1rem;
-        font-weight: 500;
-    }
-    .score {
-        color: #888;
-        font-size: 0.8rem;
-        margin-left: 1rem;
-    }
-    .desc {
-        background: #f5f5f5;
-        padding: 0.5rem;
-        margin-top: 0.5rem;
-        font-size: 0.85rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("<h2>视频高光提取</h2><hr>", unsafe_allow_html=True)
 
-st.markdown("<h2 style='font-weight:400'>视频高光提取</h2><hr>", unsafe_allow_html=True)
-
-uploaded = st.file_uploader("", type=["mp4", "avi", "mov"], label_visibility="collapsed")
+uploaded = st.file_uploader("", type=["mp4", "avi", "mov"])
 
 if uploaded is not None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
@@ -68,7 +30,7 @@ if uploaded is not None:
     st.video(video_path)
 
     if st.button("开始分析"):
-        model, processor, tokenizer, device = load_model()
+        processor, model, device = load_model()
 
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -133,13 +95,12 @@ if uploaded is not None:
                     status.text(f"AI 描述片段 {len(results)+1}/{total}...")
                     progress.progress(0.3 + (idx / total) * 0.6)
 
-                    # 模型推理
                     frame_rgb = cv2.cvtColor(frames[peak], cv2.COLOR_BGR2RGB)
                     pil_img = Image.fromarray(frame_rgb)
-                    pixel_values = processor(pil_img, return_tensors="pt").pixel_values.to(device)
+                    inputs = processor(pil_img, return_tensors="pt").to(device)
                     with torch.no_grad():
-                        output_ids = model.generate(pixel_values, max_length=32, num_beams=4)
-                    desc = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+                        out = model.generate(**inputs, max_length=45)
+                    desc = processor.decode(out[0], skip_special_tokens=True)
 
                     results.append({
                         "start": round(s / fps, 2),
@@ -156,10 +117,10 @@ if uploaded is not None:
                     for i, r in enumerate(results):
                         st.markdown(
                             f"""
-                            <div class="result-box">
-                                <span class="time">{i+1}. {r['start']}s → {r['end']}s</span>
-                                <span class="score">运动分数 {r['score']}</span>
-                                <div class="desc">{r['desc']}</div>
+                            <div style='border-bottom:1px solid #eee;padding:0.8rem 0;'>
+                                <span>{i+1}. {r['start']}s → {r['end']}s</span>
+                                <span style='color:#888;margin-left:1rem;'>运动分数 {r['score']}</span>
+                                <div style='background:#f5f5f5;padding:0.5rem;margin-top:0.5rem;'>{r['desc']}</div>
                             </div>
                             """,
                             unsafe_allow_html=True,
@@ -167,8 +128,4 @@ if uploaded is not None:
                 else:
                     st.info("未检测到明显高光")
 
-        time.sleep(0.2)
-        try:
-            os.unlink(video_path)
-        except:
-            pass
+        os.unlink(video_path)
