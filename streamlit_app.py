@@ -17,8 +17,8 @@ st.set_page_config(page_title="视频高光提取", layout="centered")
 @st.cache_resource
 def load_model():
     
-    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-small")
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-small")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     return processor, model, device
