@@ -3,5 +3,4 @@ opencv-python-headless
 numpy
 pillow
 torch
-torchvision
 transformers
